@@ -5,34 +5,83 @@ import { PrismaService } from '../prisma/prisma.service';
 export class CommentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByProcessId(processId: string) {
-    return this.prisma.comment.findMany({
+  findThreadsByProcessId(processId: string) {
+    return this.prisma.commentThread.findMany({
       where: { processId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
       include: {
-        author: {
-          select: { id: true, name: true, email: true },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            author: { select: { id: true, name: true, email: true } },
+          },
         },
       },
     });
   }
 
-  create(data: { content: string; processId: string; authorId: string }) {
+  findThreadById(id: string) {
+    return this.prisma.commentThread.findUnique({
+      where: { id },
+      include: {
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            author: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+  }
+
+  createThread(data: { processId: string; x: number; y: number; content: string; authorId: string }) {
+    return this.prisma.commentThread.create({
+      data: {
+        processId: data.processId,
+        x: data.x,
+        y: data.y,
+        comments: {
+          create: {
+            content: data.content,
+            authorId: data.authorId,
+          },
+        },
+      },
+      include: {
+        comments: {
+          include: {
+            author: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+  }
+
+  addComment(threadId: string, content: string, authorId: string) {
     return this.prisma.comment.create({
-      data,
+      data: { threadId, content, authorId },
       include: {
-        author: {
-          select: { id: true, name: true, email: true },
-        },
+        author: { select: { id: true, name: true, email: true } },
       },
     });
   }
 
-  findById(id: string) {
+  resolveThread(id: string, resolved: boolean) {
+    return this.prisma.commentThread.update({
+      where: { id },
+      data: { resolved },
+    });
+  }
+
+  deleteThread(id: string) {
+    return this.prisma.commentThread.delete({ where: { id } });
+  }
+
+  findCommentById(id: string) {
     return this.prisma.comment.findUnique({ where: { id } });
   }
 
-  delete(id: string) {
+  deleteComment(id: string) {
     return this.prisma.comment.delete({ where: { id } });
   }
 }

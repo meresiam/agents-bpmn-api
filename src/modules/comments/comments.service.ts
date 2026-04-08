@@ -14,22 +14,49 @@ export class CommentsService {
     private readonly processesService: ProcessesService,
   ) {}
 
-  async findByProcess(processId: string, user: UserPayload) {
+  async getThreads(processId: string, user: UserPayload) {
     await this.processesService.findOneForUser(processId, user);
-    return this.repository.findByProcessId(processId);
+    return this.repository.findThreadsByProcessId(processId);
   }
 
-  async create(processId: string, content: string, user: UserPayload) {
+  async createThread(processId: string, x: number, y: number, content: string, user: UserPayload) {
     await this.processesService.findOneForUser(processId, user);
-    return this.repository.create({
-      content,
+    return this.repository.createThread({
       processId,
+      x,
+      y,
+      content,
       authorId: user.sub,
     });
   }
 
-  async delete(commentId: string, user: UserPayload) {
-    const comment = await this.repository.findById(commentId);
+  async addComment(threadId: string, content: string, user: UserPayload) {
+    const thread = await this.repository.findThreadById(threadId);
+    if (!thread) throw new NotFoundException('Thread nao encontrada');
+    // Verify user has access to the process
+    await this.processesService.findOneForUser(thread.processId, user);
+    return this.repository.addComment(threadId, content, user.sub);
+  }
+
+  async resolveThread(threadId: string, resolved: boolean, user: UserPayload) {
+    const thread = await this.repository.findThreadById(threadId);
+    if (!thread) throw new NotFoundException('Thread nao encontrada');
+    await this.processesService.findOneForUser(thread.processId, user);
+    return this.repository.resolveThread(threadId, resolved);
+  }
+
+  async deleteThread(threadId: string, user: UserPayload) {
+    const thread = await this.repository.findThreadById(threadId);
+    if (!thread) throw new NotFoundException('Thread nao encontrada');
+    await this.processesService.findOneForUser(thread.processId, user);
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      throw new ForbiddenException();
+    }
+    return this.repository.deleteThread(threadId);
+  }
+
+  async deleteComment(commentId: string, user: UserPayload) {
+    const comment = await this.repository.findCommentById(commentId);
     if (!comment) throw new NotFoundException('Comentario nao encontrado');
     if (
       comment.authorId !== user.sub &&
@@ -38,6 +65,6 @@ export class CommentsService {
     ) {
       throw new ForbiddenException();
     }
-    return this.repository.delete(commentId);
+    return this.repository.deleteComment(commentId);
   }
 }
