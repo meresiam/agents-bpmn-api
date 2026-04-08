@@ -34,6 +34,7 @@ model Process {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   threads     CommentThread[]
+  stickyNotes StickyNote[]
 
   @@unique([tenantId, slug], name: "uq_process_tenant_slug")
   @@map("processes")
@@ -81,6 +82,32 @@ model Comment {
 
   @@map("comments")
   @@index([threadId], name: "idx_comments_thread_id")
+}
+
+model StickyNote {
+  id        String       @id @default(uuid())
+  processId String
+  process   Process      @relation(fields: [processId], references: [id], onDelete: Cascade)
+  content   String
+  color     NoteColor    @default(YELLOW)
+  x         Float
+  y         Float
+  width     Float        @default(200)
+  height    Float        @default(120)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("sticky_notes")
+  @@index([processId], name: "idx_sticky_notes_process_id")
+}
+
+enum NoteColor {
+  YELLOW
+  BLUE
+  GREEN
+  PINK
+  ORANGE
+  PURPLE
 }
 
 model ApiKey {

@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ProcessesModule } from './modules/processes/processes.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
+import { StickyNotesModule } from './modules/sticky-notes/sticky-notes.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -16,6 +17,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     ProcessesModule,
     CommentsModule,
     PublicApiModule,
+    StickyNotesModule,
   ],
   providers: [
     {
