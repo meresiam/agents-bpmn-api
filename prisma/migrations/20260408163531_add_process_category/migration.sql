@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "ProcessCategory" AS ENUM ('COMERCIAL', 'MARKETING', 'FINANCEIRO', 'OPERACOES', 'RH', 'ATENDIMENTO', 'ONBOARDING', 'LOGISTICA', 'JURIDICO', 'TI', 'OUTRO');
+
+-- AlterTable
+ALTER TABLE "processes" ADD COLUMN     "category" "ProcessCategory" NOT NULL DEFAULT 'COMERCIAL';
