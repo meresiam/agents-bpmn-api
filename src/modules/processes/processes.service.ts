@@ -112,4 +112,10 @@ export class ProcessesService {
   async findAllByTenantId(tenantId: string) {
     return this.repository.findAllByTenant(tenantId);
   }
+
+  async updateLayoutOverrides(id: string, overrides: Record<string, { x: number; y: number }> | null) {
+    return this.repository.update(id, {
+      layoutOverrides: overrides === null ? null : (overrides as any),
+    });
+  }
 }

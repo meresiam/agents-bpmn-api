@@ -30,6 +30,7 @@ model Process {
   description String?
   category    ProcessCategory  @default(COMERCIAL)
   graph       Json
+  layoutOverrides Json?
   version     Int              @default(1)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt

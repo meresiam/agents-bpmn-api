@@ -59,6 +59,31 @@ export class ProcessesController {
     return this.processesService.updateForUser(id, user, dto);
   }
 
+  /** PATCH /processes/:id/layout — save node position overrides (SUPER_ADMIN only) */
+  @Patch(':id/layout')
+  async updateLayout(
+    @Param('id') id: string,
+    @Body() body: { overrides: Record<string, { x: number; y: number }> },
+    @CurrentUser() user: UserPayload,
+  ) {
+    if (user.role !== 'SUPER_ADMIN') throw new ForbiddenException();
+    const process = await this.processesService.findOneForUser(id, user);
+    // Merge with existing overrides
+    const existing = (process.layoutOverrides as Record<string, { x: number; y: number }>) || {};
+    const merged = { ...existing, ...body.overrides };
+    return this.processesService.updateLayoutOverrides(id, merged);
+  }
+
+  /** DELETE /processes/:id/layout — reset all layout overrides (SUPER_ADMIN only) */
+  @Delete(':id/layout')
+  async resetLayout(
+    @Param('id') id: string,
+    @CurrentUser() user: UserPayload,
+  ) {
+    if (user.role !== 'SUPER_ADMIN') throw new ForbiddenException();
+    return this.processesService.updateLayoutOverrides(id, null);
+  }
+
   @Delete(':id')
   async delete(@Param('id') id: string, @CurrentUser() user: UserPayload) {
     return this.processesService.deleteForUser(id, user);
