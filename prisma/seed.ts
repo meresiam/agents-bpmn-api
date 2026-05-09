@@ -34,6 +34,23 @@ async function main() {
   });
   console.log('Super Admin created:', superAdmin.email);
 
+  // Create SUPER_ADMIN Meres (AILA founder — ve todos os clientes/fluxos)
+  const meresAdmin = await prisma.user.upsert({
+    where: { email: 'meres@ailalabs.com' },
+    update: {
+      password: await bcrypt.hash('aila123456', BCRYPT_ROUNDS),
+      role: 'SUPER_ADMIN',
+    },
+    create: {
+      email: 'meres@ailalabs.com',
+      password: await bcrypt.hash('aila123456', BCRYPT_ROUNDS),
+      name: 'Meres — AILA',
+      tenantId: 'aila',
+      role: 'SUPER_ADMIN',
+    },
+  });
+  console.log('Super Admin Meres created:', meresAdmin.email);
+
   // Create tenant users
   const arwUser = await prisma.user.upsert({
     where: { email: 'admin@arw.com.br' },
