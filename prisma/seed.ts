@@ -78,8 +78,8 @@ async function main() {
 
   console.log('Users created:', arwUser.email, maturiUser.email);
 
-  // Load graphs from frontend data files
-  const graphsDir = path.resolve(__dirname, '../../frontend/src/data/graphs');
+  // Load graphs inlined no proprio repo da API (prisma/graphs/) para nao depender do filesystem do frontend.
+  const graphsDir = path.resolve(__dirname, 'graphs');
 
   const arwGraph = loadGraph(path.join(graphsDir, 'arw-comercial.ts'));
   const maturiComercialGraph = loadGraph(path.join(graphsDir, 'maturi-comercial.ts'));
@@ -127,21 +127,31 @@ async function main() {
 
   console.log('Processes seeded: arw/comercial, maturi/comercial, maturi/marketing');
 
-  // Create API Key for Claude Code
+  // Create API Key for Claude Code (idempotente: bcrypt salt randomico
+  // impede upsert por hash, entao verificamos existencia via bcrypt.compare).
   const rawApiKey = 'bravy-bpmn-api-key-2026';
-  const hashedKey = await bcrypt.hash(rawApiKey, BCRYPT_ROUNDS);
+  const existingKeys = await prisma.apiKey.findMany({ where: { isActive: true } });
+  let alreadyExists = false;
+  for (const k of existingKeys) {
+    if (await bcrypt.compare(rawApiKey, k.key)) {
+      alreadyExists = true;
+      break;
+    }
+  }
 
-  await prisma.apiKey.upsert({
-    where: { key: hashedKey },
-    update: {},
-    create: {
-      key: hashedKey,
-      name: 'Claude Code - Dev',
-      isActive: true,
-    },
-  });
-
-  console.log('API Key created. Raw key:', rawApiKey);
+  if (!alreadyExists) {
+    const hashedKey = await bcrypt.hash(rawApiKey, BCRYPT_ROUNDS);
+    await prisma.apiKey.create({
+      data: {
+        key: hashedKey,
+        name: 'Claude Code - Dev',
+        isActive: true,
+      },
+    });
+    console.log('API Key created. Raw key:', rawApiKey);
+  } else {
+    console.log('API Key already exists, skipping.');
+  }
   console.log('Use header: X-API-Key:', rawApiKey);
 }
 
