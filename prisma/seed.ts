@@ -76,7 +76,24 @@ async function main() {
     },
   });
 
-  console.log('Users created:', arwUser.email, maturiUser.email);
+  // Cliente Marcelo Lexcont (visualizador read-only do tenant marcelo-lexcont)
+  const marceloUser = await prisma.user.upsert({
+    where: { email: 'marcelolexon@teste.com' },
+    update: {
+      password: await bcrypt.hash('12345678', BCRYPT_ROUNDS),
+      tenantId: 'marcelo-lexcont',
+      role: 'CLIENT',
+    },
+    create: {
+      email: 'marcelolexon@teste.com',
+      password: await bcrypt.hash('12345678', BCRYPT_ROUNDS),
+      name: 'Marcelo Lexcont',
+      tenantId: 'marcelo-lexcont',
+      role: 'CLIENT',
+    },
+  });
+
+  console.log('Users created:', arwUser.email, maturiUser.email, marceloUser.email);
 
   // Load graphs inlined no proprio repo da API (prisma/graphs/) para nao depender do filesystem do frontend.
   const graphsDir = path.resolve(__dirname, 'graphs');
