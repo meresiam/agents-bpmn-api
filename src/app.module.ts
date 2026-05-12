@@ -8,6 +8,8 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
 import { StickyNotesModule } from './modules/sticky-notes/sticky-notes.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { UsersModule } from './modules/users/users.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -20,6 +22,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     PublicApiModule,
     StickyNotesModule,
     ChatModule,
+    UsersModule,
+    TenantsModule,
   ],
   providers: [
     {
