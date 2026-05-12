@@ -20,4 +20,9 @@ export class CreateProcessDto {
 
   @IsObject()
   graph!: Record<string, unknown>;
+
+  /** Aceito apenas quando o caller for SUPER_ADMIN; demais roles tem tenant fixo da sessao. */
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
 }

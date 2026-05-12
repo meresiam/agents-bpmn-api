@@ -7,6 +7,7 @@ import { ProcessesModule } from './modules/processes/processes.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
 import { StickyNotesModule } from './modules/sticky-notes/sticky-notes.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -18,6 +19,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     CommentsModule,
     PublicApiModule,
     StickyNotesModule,
+    ChatModule,
   ],
   providers: [
     {

@@ -47,7 +47,13 @@ export class ProcessesController {
     @Body() dto: CreateProcessDto,
     @CurrentUser() user: UserPayload,
   ) {
-    return this.processesService.create(user.tenantId, dto);
+    // SUPER_ADMIN pode criar fluxos em outro tenant (passa tenantId no body).
+    // Demais roles: tenant da sessao, ignora o que veio no body.
+    const targetTenant =
+      user.role === 'SUPER_ADMIN' && dto.tenantId?.trim()
+        ? dto.tenantId.trim()
+        : user.tenantId;
+    return this.processesService.create(targetTenant, dto);
   }
 
   @Patch(':id')
