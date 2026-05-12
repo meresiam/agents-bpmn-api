@@ -76,16 +76,19 @@ async function main() {
     },
   });
 
-  // Cliente Marcelo Lexcont (visualizador read-only do tenant marcelo-lexcont)
+  // Cliente Marcelo Lexcont (visualizador read-only do tenant marcelo-lexcont).
+  // Remove email antigo com typo (marcelolexon — sem o "c" e "t" da empresa Lexcont)
+  // e cria/atualiza com o email correto.
+  await prisma.user.deleteMany({ where: { email: 'marcelolexon@teste.com' } });
   const marceloUser = await prisma.user.upsert({
-    where: { email: 'marcelolexon@teste.com' },
+    where: { email: 'marcelolexcont@teste.com' },
     update: {
       password: await bcrypt.hash('12345678', BCRYPT_ROUNDS),
       tenantId: 'marcelo-lexcont',
       role: 'CLIENT',
     },
     create: {
-      email: 'marcelolexon@teste.com',
+      email: 'marcelolexcont@teste.com',
       password: await bcrypt.hash('12345678', BCRYPT_ROUNDS),
       name: 'Marcelo Lexcont',
       tenantId: 'marcelo-lexcont',
