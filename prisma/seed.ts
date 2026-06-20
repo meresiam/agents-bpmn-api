@@ -77,9 +77,8 @@ async function main() {
   });
 
   // Cliente Marcelo Lexcont (visualizador read-only do tenant marcelo-lexcont).
-  // Remove email antigo com typo (marcelolexon — sem o "c" e "t" da empresa Lexcont)
-  // e cria/atualiza com o email correto.
-  await prisma.user.deleteMany({ where: { email: 'marcelolexon@teste.com' } });
+  // S1.3.b — sem deleteMany: o seed e idempotente (so upsert), nunca destrutivo.
+  // O typo antigo (marcelolexon) ja foi limpo em prod; nao reintroduzir delete.
   const marceloUser = await prisma.user.upsert({
     where: { email: 'marcelolexcont@teste.com' },
     update: {
