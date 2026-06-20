@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './modules/prisma/prisma.module';
+import { HealthController } from './common/health/health.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProcessesModule } from './modules/processes/processes.module';
 import { CommentsModule } from './modules/comments/comments.module';
@@ -15,6 +17,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // S1.4.b — rate limiting global (100 req/min por IP). Limites apertados
+    // em rotas sensiveis via @Throttle nos controllers (login/share/chat).
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
     AuthModule,
     ProcessesModule,
@@ -25,7 +30,13 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     UsersModule,
     TenantsModule,
   ],
+  controllers: [HealthController],
   providers: [
+    // ThrottlerGuard primeiro: rate-limit antes da auth (barra brute-force no login).
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

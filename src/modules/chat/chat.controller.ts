@@ -10,6 +10,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ChatService, StreamEvent } from './chat.service';
 import { GapAnalysisService } from './gap/gap-analysis.service';
@@ -20,6 +21,8 @@ import { CurrentUser, UserPayload } from '../../common/decorators/current-user.d
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB por arquivo
 
+// S1.4.b — chamadas LLM sao caras: teto de 10/min por IP em todo o /chat.
+@Throttle({ default: { ttl: 60000, limit: 10 } })
 @Controller('chat')
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);

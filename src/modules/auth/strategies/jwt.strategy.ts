@@ -7,10 +7,15 @@ import { UserPayload } from '../../../common/decorators/current-user.decorator';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
+    const secret = configService.get<string>('JWT_SECRET');
+    // S1.4.a — fail-fast: sem default fraco. Boot aborta se JWT_SECRET ausente.
+    if (!secret) {
+      throw new Error('JWT_SECRET nao configurado — abortando boot (W1 S1.4.a)');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET', 'bravy-bpmn-secret'),
+      secretOrKey: secret,
     });
   }
 
