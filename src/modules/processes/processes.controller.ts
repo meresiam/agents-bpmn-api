@@ -12,6 +12,7 @@ import {
 import { ProcessesService } from './processes.service';
 import { CreateProcessDto } from './dto/create-process.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
+import { PairProcessDto } from './dto/pair-process.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 
 @Controller('processes')
@@ -40,6 +41,22 @@ export class ProcessesController {
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: UserPayload) {
     return this.processesService.findOneForUser(id, user);
+  }
+
+  /** GET /processes/:id/pair — retorna o par { asIs, toBe } a partir de qualquer face (Epic 4.A) */
+  @Get(':id/pair')
+  async getPair(@Param('id') id: string, @CurrentUser() user: UserPayload) {
+    return this.processesService.getPairForUser(id, user);
+  }
+
+  /** POST /processes/:id/pair — gera o TO-BE vinculado (processo vira AS-IS) (Epic 4.A) */
+  @Post(':id/pair')
+  async createPair(
+    @Param('id') id: string,
+    @Body() dto: PairProcessDto,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.processesService.createPairForUser(id, user, dto);
   }
 
   @Post()

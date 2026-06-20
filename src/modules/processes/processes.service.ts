@@ -118,4 +118,64 @@ export class ProcessesService {
       layoutOverrides: overrides === null ? null : (overrides as any),
     });
   }
+
+  /**
+   * Epic 4.A — cria o TO_BE vinculado a partir de um processo SINGLE (que vira AS_IS).
+   * O TO_BE comeca como clone do graph do AS_IS (placeholder editavel ate a geracao
+   * assistida por IA da Epic 4.C). Mesmo tenant, isolamento preservado.
+   */
+  async createPairForUser(
+    id: string,
+    user: UserPayload,
+    opts: { title?: string; slug?: string },
+  ) {
+    const asIs = await this.findOneForUser(id, user);
+
+    if (asIs.processKind !== 'SINGLE' || asIs.pairedProcessId) {
+      throw new ConflictException('Este processo ja faz parte de um par AS-IS / TO-BE.');
+    }
+
+    const title = opts.title?.trim() || `${asIs.title} (TO-BE)`;
+    const baseSlug = opts.slug?.trim() || `${asIs.slug}-to-be`;
+    const slug = await this.resolveUniqueSlug(asIs.tenantId, baseSlug);
+
+    return this.repository.createPair(asIs.id, {
+      tenantId: asIs.tenantId,
+      slug,
+      title,
+      description: asIs.description,
+      category: asIs.category,
+      graph: asIs.graph as any,
+      processKind: 'TO_BE',
+    });
+  }
+
+  /** Epic 4.A — retorna o par { asIs, toBe } a partir de qualquer face. */
+  async getPairForUser(id: string, user: UserPayload) {
+    const process = await this.repository.findByIdWithPair(id);
+    if (!process) throw new NotFoundException('Processo nao encontrado');
+    if (!this.isSuperAdmin(user) && process.tenantId !== user.tenantId) {
+      throw new ForbiddenException();
+    }
+
+    // Resolve a contraparte: AS_IS é dono do FK; TO_BE chega pela back-relation.
+    const counterpart = process.pairedProcess ?? process.pairedFrom;
+    if (!counterpart) {
+      throw new NotFoundException('Este processo nao possui par AS-IS / TO-BE.');
+    }
+
+    const asIs = process.processKind === 'AS_IS' ? process : counterpart;
+    const toBe = process.processKind === 'TO_BE' ? process : counterpart;
+    return { asIs, toBe };
+  }
+
+  /** Garante slug unico no tenant adicionando sufixo incremental se colidir. */
+  private async resolveUniqueSlug(tenantId: string, baseSlug: string): Promise<string> {
+    let candidate = baseSlug;
+    let n = 2;
+    while (await this.repository.findByTenantAndSlug(tenantId, candidate)) {
+      candidate = `${baseSlug}-${n++}`;
+    }
+    return candidate;
+  }
 }

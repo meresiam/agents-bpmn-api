@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Process } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const PROCESS_LIST_SELECT = {
@@ -10,6 +10,8 @@ const PROCESS_LIST_SELECT = {
   description: true,
   category: true,
   version: true,
+  processKind: true,
+  pairedProcessId: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -50,9 +52,36 @@ export class ProcessesRepository {
     return this.prisma.process.findUnique({ where: { id } });
   }
 
+  /** Carrega o processo com as duas pontas do par (AS_IS dono do FK + back-relation). */
+  findByIdWithPair(id: string) {
+    return this.prisma.process.findUnique({
+      where: { id },
+      include: { pairedProcess: true, pairedFrom: true },
+    });
+  }
+
   findByTenantAndSlug(tenantId: string, slug: string) {
     return this.prisma.process.findUnique({
       where: { uq_process_tenant_slug: { tenantId, slug } },
+    });
+  }
+
+  /**
+   * Cria o TO_BE e vincula ao AS_IS numa transacao.
+   * Promove o processo de origem de SINGLE → AS_IS e seta o FK do par.
+   * Retorna { asIs, toBe } ja atualizados.
+   */
+  async createPair(
+    asIsId: string,
+    toBe: Prisma.ProcessCreateInput,
+  ): Promise<{ asIs: Process; toBe: Process }> {
+    return this.prisma.$transaction(async (tx) => {
+      const createdToBe = await tx.process.create({ data: toBe });
+      const updatedAsIs = await tx.process.update({
+        where: { id: asIsId },
+        data: { processKind: 'AS_IS', pairedProcessId: createdToBe.id },
+      });
+      return { asIs: updatedAsIs, toBe: createdToBe };
     });
   }
 
