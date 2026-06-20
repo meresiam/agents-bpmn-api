@@ -23,7 +23,15 @@ export class ApiKeyGuard implements CanActivate {
 
     for (const stored of keys) {
       const isMatch = await bcrypt.compare(apiKey, stored.key);
-      if (isMatch) return true;
+      if (isMatch) {
+        // Fail-closed: chave sem tenant nao opera (S1.2.a). Evita IDOR por chave legada.
+        if (!stored.tenantId) {
+          throw new UnauthorizedException('API Key sem tenant associado');
+        }
+        // Injeta o tenant da chave no request — toda operacao publica fica escopada a ele.
+        request.apiKeyTenantId = stored.tenantId;
+        return true;
+      }
     }
 
     throw new UnauthorizedException('API Key invalida');

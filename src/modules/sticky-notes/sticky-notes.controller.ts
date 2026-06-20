@@ -36,12 +36,13 @@ export class StickyNotesController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateStickyNoteDto,
+    @CurrentUser() user: UserPayload,
   ) {
-    return this.stickyNotesService.update(id, dto);
+    return this.stickyNotesService.updateForUser(id, dto, user);
   }
 
   @Delete('notes/:id')
-  async delete(@Param('id') id: string) {
-    return this.stickyNotesService.delete(id);
+  async delete(@Param('id') id: string, @CurrentUser() user: UserPayload) {
+    return this.stickyNotesService.deleteForUser(id, user);
   }
 }

@@ -150,27 +150,36 @@ async function main() {
   // Create API Key for Claude Code (idempotente: bcrypt salt randomico
   // impede upsert por hash, entao verificamos existencia via bcrypt.compare).
   const rawApiKey = 'bravy-bpmn-api-key-2026';
+  const API_KEY_TENANT = 'aila'; // chave escopada ao tenant (S1.2.a)
   const existingKeys = await prisma.apiKey.findMany({ where: { isActive: true } });
-  let alreadyExists = false;
+  let matched: (typeof existingKeys)[number] | null = null;
   for (const k of existingKeys) {
     if (await bcrypt.compare(rawApiKey, k.key)) {
-      alreadyExists = true;
+      matched = k;
       break;
     }
   }
 
-  if (!alreadyExists) {
+  if (!matched) {
     const hashedKey = await bcrypt.hash(rawApiKey, BCRYPT_ROUNDS);
     await prisma.apiKey.create({
       data: {
         key: hashedKey,
         name: 'Claude Code - Dev',
+        tenantId: API_KEY_TENANT,
         isActive: true,
       },
     });
-    console.log('API Key created. Raw key:', rawApiKey);
+    console.log('API Key created. Raw key:', rawApiKey, '(tenant:', API_KEY_TENANT, ')');
+  } else if (!matched.tenantId) {
+    // Backfill da chave legada (criada antes da S1.2.a) para nao quebrar a integracao.
+    await prisma.apiKey.update({
+      where: { id: matched.id },
+      data: { tenantId: API_KEY_TENANT },
+    });
+    console.log('API Key existente — tenant backfilled:', API_KEY_TENANT);
   } else {
-    console.log('API Key already exists, skipping.');
+    console.log('API Key already exists (tenant:', matched.tenantId, '), skipping.');
   }
   console.log('Use header: X-API-Key:', rawApiKey);
 }

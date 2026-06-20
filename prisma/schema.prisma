@@ -126,9 +126,13 @@ model ApiKey {
   id        String   @id @default(uuid())
   key       String   @unique
   name      String
+  // Wave 1 (S1.2.a) — chave pertence a um tenant. Nullable (expand-contract) pra
+  // nao quebrar chaves existentes; o guard rejeita chave sem tenant (fail-closed).
+  tenantId  String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  @@index([tenantId], name: "idx_api_keys_tenant_id")
   @@map("api_keys")
 }
 

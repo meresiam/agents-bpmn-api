@@ -11,53 +11,71 @@ export class StickyNotesService {
     private readonly processesService: ProcessesService,
   ) {}
 
+  // ─── Autenticado (JWT) — isolamento via findOneForUser ──────
+
   async findByProcess(processId: string, user: UserPayload) {
     await this.processesService.findOneForUser(processId, user);
     return this.repository.findByProcessId(processId);
   }
 
-  /** For public API — no user context */
-  async findByProcessPublic(processId: string) {
-    await this.processesService.findOneAnyTenant(processId);
-    return this.repository.findByProcessId(processId);
-  }
-
   async create(processId: string, dto: CreateStickyNoteDto, user: UserPayload) {
     await this.processesService.findOneForUser(processId, user);
-    return this.repository.create({
-      processId,
-      content: dto.content,
-      color: dto.color,
-      x: dto.x,
-      y: dto.y,
-      ...(dto.width && { width: dto.width }),
-      ...(dto.height && { height: dto.height }),
-    });
+    return this.repository.create(this.buildCreateData(processId, dto));
   }
 
-  /** For public API */
-  async createPublic(processId: string, dto: CreateStickyNoteDto) {
-    await this.processesService.findOneAnyTenant(processId);
-    return this.repository.create({
-      processId,
-      content: dto.content,
-      color: dto.color,
-      x: dto.x,
-      y: dto.y,
-      ...(dto.width && { width: dto.width }),
-      ...(dto.height && { height: dto.height }),
-    });
-  }
-
-  async update(noteId: string, dto: UpdateStickyNoteDto) {
-    const note = await this.repository.findById(noteId);
-    if (!note) throw new NotFoundException('Sticky note nao encontrada');
+  async updateForUser(noteId: string, dto: UpdateStickyNoteDto, user: UserPayload) {
+    const note = await this.requireNote(noteId);
+    await this.processesService.findOneForUser(note.processId, user);
     return this.repository.update(noteId, dto);
   }
 
-  async delete(noteId: string) {
+  async deleteForUser(noteId: string, user: UserPayload) {
+    const note = await this.requireNote(noteId);
+    await this.processesService.findOneForUser(note.processId, user);
+    return this.repository.delete(noteId);
+  }
+
+  // ─── API publica (X-API-Key) — isolamento via tenant da chave ──
+
+  async findByProcessForTenant(processId: string, tenantId: string) {
+    await this.processesService.findOne(processId, tenantId);
+    return this.repository.findByProcessId(processId);
+  }
+
+  async createForTenant(processId: string, dto: CreateStickyNoteDto, tenantId: string) {
+    await this.processesService.findOne(processId, tenantId);
+    return this.repository.create(this.buildCreateData(processId, dto));
+  }
+
+  async updateForTenant(noteId: string, dto: UpdateStickyNoteDto, tenantId: string) {
+    const note = await this.requireNote(noteId);
+    await this.processesService.findOne(note.processId, tenantId);
+    return this.repository.update(noteId, dto);
+  }
+
+  async deleteForTenant(noteId: string, tenantId: string) {
+    const note = await this.requireNote(noteId);
+    await this.processesService.findOne(note.processId, tenantId);
+    return this.repository.delete(noteId);
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────
+
+  private async requireNote(noteId: string) {
     const note = await this.repository.findById(noteId);
     if (!note) throw new NotFoundException('Sticky note nao encontrada');
-    return this.repository.delete(noteId);
+    return note;
+  }
+
+  private buildCreateData(processId: string, dto: CreateStickyNoteDto) {
+    return {
+      processId,
+      content: dto.content,
+      color: dto.color,
+      x: dto.x,
+      y: dto.y,
+      ...(dto.width && { width: dto.width }),
+      ...(dto.height && { height: dto.height }),
+    };
   }
 }

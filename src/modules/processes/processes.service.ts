@@ -44,6 +44,11 @@ export class ProcessesService {
     return process;
   }
 
+  /**
+   * Leitura sem escopo de tenant — uso EXCLUSIVO do /share (link publico
+   * intencional). NAO usar na API privada nem na API publica (X-API-Key):
+   * la o isolamento por tenant e obrigatorio (S1.2).
+   */
   async findOneAnyTenant(id: string) {
     const process = await this.repository.findById(id);
     if (!process) throw new NotFoundException('Processo nao encontrado');
@@ -84,16 +89,6 @@ export class ProcessesService {
     });
   }
 
-  async updateAnyTenant(id: string, dto: UpdateProcessDto) {
-    await this.findOneAnyTenant(id);
-    return this.repository.update(id, {
-      ...(dto.title && { title: dto.title }),
-      ...(dto.description !== undefined && { description: dto.description }),
-      ...(dto.category && { category: dto.category }),
-      ...(dto.graph && { graph: dto.graph as any, version: { increment: 1 } }),
-    });
-  }
-
   async deleteForUser(id: string, user: UserPayload) {
     const process = await this.findOneForUser(id, user);
     return this.repository.delete(process.id);
@@ -102,11 +97,6 @@ export class ProcessesService {
   async delete(id: string, tenantId: string) {
     const process = await this.findOne(id, tenantId);
     return this.repository.delete(process.id);
-  }
-
-  async deleteAnyTenant(id: string) {
-    await this.findOneAnyTenant(id);
-    return this.repository.delete(id);
   }
 
   async findAllByTenantId(tenantId: string) {
