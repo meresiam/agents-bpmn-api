@@ -12,7 +12,9 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { ChatService, StreamEvent } from './chat.service';
+import { GapAnalysisService } from './gap/gap-analysis.service';
 import { GenerateGraphDto } from './dto/generate-graph.dto';
+import { AnalyzeGapDto } from './dto/analyze-gap.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 
 const MAX_FILES = 5;
@@ -22,7 +24,22 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB por arquivo
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly gapAnalysisService: GapAnalysisService,
+  ) {}
+
+  /**
+   * POST /chat/analyze-gap (Epic 4.B)
+   *
+   * Recebe { processId } em JSON, carrega o grafo server-side (tenant-scoped) e
+   * roda a analise de GAP via LLM. Retorna a lista estruturada de gaps + resumo.
+   */
+  @Post('analyze-gap')
+  async analyzeGap(@Body() dto: AnalyzeGapDto, @CurrentUser() user: UserPayload) {
+    this.logger.log(`analyze-gap: processId=${dto.processId} user=${user.email}`);
+    return this.gapAnalysisService.analyzeForUser(dto.processId, user);
+  }
 
   /**
    * POST /chat/generate-graph

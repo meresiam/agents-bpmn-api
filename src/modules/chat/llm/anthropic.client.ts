@@ -118,6 +118,30 @@ export class AnthropicClient {
     });
   }
 
+  /**
+   * Completagem JSON generica (non-streaming). Roda um system-prompt arbitrario e
+   * devolve o JSON parseado cru — a validacao de shape fica a cargo do caller.
+   * Reusa o mesmo client + tratamento de fence do gerador de BPMN.
+   */
+  async completeStructured(
+    systemPrompt: string,
+    userMessage: string,
+    maxTokens = 4096,
+  ): Promise<unknown> {
+    const client = this.getClient();
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+    const textBlock = response.content.find((b) => b.type === 'text');
+    if (!textBlock || textBlock.type !== 'text') {
+      throw new Error('LLM nao retornou bloco de texto');
+    }
+    return this.parseJsonResponse(textBlock.text.trim());
+  }
+
   /** Parsea e valida o texto final do LLM (usado por modo non-streaming e ao fim do stream). */
   parseAndValidate(rawText: string): BpmnGenerationOutput {
     const raw = rawText.trim();
