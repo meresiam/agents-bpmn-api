@@ -82,7 +82,7 @@ export class AnthropicClient {
     const mode: GenerationMode = existingGraph ? 'edit' : 'create';
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: mode === 'edit' ? BPMN_EDIT_SYSTEM_PROMPT : BPMN_SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: this.buildUserMessage(userPrompt, attachmentsContext, existingGraph) },
@@ -110,7 +110,7 @@ export class AnthropicClient {
     const mode: GenerationMode = existingGraph ? 'edit' : 'create';
     return client.messages.stream({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: mode === 'edit' ? BPMN_EDIT_SYSTEM_PROMPT : BPMN_SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: this.buildUserMessage(userPrompt, attachmentsContext, existingGraph) },
