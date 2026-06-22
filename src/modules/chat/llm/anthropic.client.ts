@@ -151,15 +151,25 @@ export class AnthropicClient {
 
   private parseJsonResponse(raw: string): unknown {
     // Strip markdown fences if the model still wraps despite instructions
-    let cleaned = raw;
+    let cleaned = raw.trim();
     if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
     }
     try {
       return JSON.parse(cleaned);
-    } catch (err) {
-      this.logger.error(`Falha parse JSON do LLM: ${(err as Error).message}`);
-      this.logger.error(`Raw output: ${cleaned.slice(0, 500)}`);
+    } catch {
+      // Fallback: o LLM as vezes embrulha o JSON em prosa ("Aqui esta: {...}").
+      // Recorta do primeiro "{" ao ultimo "}" e tenta de novo antes de desistir.
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        try {
+          return JSON.parse(cleaned.slice(start, end + 1));
+        } catch {
+          // cai no throw abaixo
+        }
+      }
+      this.logger.error(`Falha parse JSON do LLM. Raw: ${cleaned.slice(0, 500)}`);
       throw new Error('Saida do LLM nao e JSON valido');
     }
   }
