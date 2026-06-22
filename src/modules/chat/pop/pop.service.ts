@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AnthropicClient } from '../llm/anthropic.client';
@@ -98,15 +99,28 @@ export class PopService {
 
     const userMessage = this.buildUserMessage(sourceGraph, sourceTitle);
 
+    // max_tokens alto: um POP de processo grande (ex 37 nós) gera dezenas de
+    // passos + papeis + indicadores + riscos. Com 4096 a saida truncava e o
+    // parse JSON falhava (500). 16k cobre fluxos grandes com folga.
     const started = Date.now();
-    const parsed = await this.anthropic.completeStructured(
-      POP_GENERATION_SYSTEM_PROMPT,
-      userMessage,
-      4096,
-    );
+    let content: PopContent;
+    try {
+      const parsed = await this.anthropic.completeStructured(
+        POP_GENERATION_SYSTEM_PROMPT,
+        userMessage,
+        16384,
+      );
+      content = this.validate(parsed, sourceTitle, sourceVersion);
+    } catch (err) {
+      // Erros de infra (ANTHROPIC_API_KEY ausente) sobem como estao; falha de
+      // parse/validacao vira mensagem PT-BR acionavel em vez de 500 cru.
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`generate-pop falhou (process=${sourceId}): ${(err as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Nao foi possivel gerar o POP a partir deste processo. O fluxo pode ser muito grande ou a resposta veio incompleta; tente novamente.',
+      );
+    }
     const llmMs = Date.now() - started;
-
-    const content = this.validate(parsed, sourceTitle, sourceVersion);
 
     const version = (await this.repository.maxVersion(sourceId)) + 1;
     const saved = await this.repository.create({
