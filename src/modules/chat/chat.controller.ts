@@ -3,7 +3,9 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Logger,
+  Param,
   Post,
   Res,
   UploadedFiles,
@@ -14,8 +16,10 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ChatService, StreamEvent } from './chat.service';
 import { GapAnalysisService } from './gap/gap-analysis.service';
+import { PopService } from './pop/pop.service';
 import { GenerateGraphDto } from './dto/generate-graph.dto';
 import { AnalyzeGapDto } from './dto/analyze-gap.dto';
+import { GeneratePopDto } from './dto/generate-pop.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 
 const MAX_FILES = 5;
@@ -30,6 +34,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly gapAnalysisService: GapAnalysisService,
+    private readonly popService: PopService,
   ) {}
 
   /**
@@ -42,6 +47,33 @@ export class ChatController {
   async analyzeGap(@Body() dto: AnalyzeGapDto, @CurrentUser() user: UserPayload) {
     this.logger.log(`analyze-gap: processId=${dto.processId} user=${user.email}`);
     return this.gapAnalysisService.analyzeForUser(dto.processId, user);
+  }
+
+  /**
+   * POST /chat/generate-pop (Epic 6.A)
+   *
+   * Recebe { processId }, carrega o grafo TO-BE server-side (tenant-scoped),
+   * gera o POP estruturado via LLM, persiste e retorna o POP completo.
+   */
+  @Post('generate-pop')
+  async generatePop(@Body() dto: GeneratePopDto, @CurrentUser() user: UserPayload) {
+    this.logger.log(`generate-pop: processId=${dto.processId} user=${user.email}`);
+    return this.popService.generateForUser(dto.processId, user);
+  }
+
+  /**
+   * GET /chat/pop/process/:processId — lista os POPs (metadados) de um processo.
+   * GET /chat/pop/:popId — retorna um POP completo (com content).
+   * Ambos tenant-scoped.
+   */
+  @Get('pop/process/:processId')
+  async listPops(@Param('processId') processId: string, @CurrentUser() user: UserPayload) {
+    return this.popService.listForUser(processId, user);
+  }
+
+  @Get('pop/:popId')
+  async getPop(@Param('popId') popId: string, @CurrentUser() user: UserPayload) {
+    return this.popService.getForUser(popId, user);
   }
 
   /**

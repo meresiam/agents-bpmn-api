@@ -41,6 +41,7 @@ model Process {
   updatedAt       DateTime        @updatedAt
   threads         CommentThread[]
   stickyNotes     StickyNote[]
+  pops            Pop[]
 
   @@unique([tenantId, slug], name: "uq_process_tenant_slug")
   @@index([tenantId], name: "idx_processes_tenant_id")
@@ -134,6 +135,32 @@ model ApiKey {
 
   @@index([tenantId], name: "idx_api_keys_tenant_id")
   @@map("api_keys")
+}
+
+// Wave 6 / Epic 6.A — POP (Procedimento Operacional Padrao) gerado do TO-BE.
+// content guarda o POP estruturado (objetivo, escopo, papeis, materiais, passos[],
+// indicadores, riscos). As imagens por passo (Epic 6.B) entram dentro de content.
+model Pop {
+  id        String    @id @default(uuid())
+  tenantId  String
+  // Processo (TO_BE ou SINGLE) que originou o POP. Cascade: apagar o processo
+  // apaga seus POPs (o POP nao faz sentido sem o fluxo de origem).
+  processId String
+  process   Process   @relation(fields: [processId], references: [id], onDelete: Cascade)
+  version   Int       @default(1)
+  content   Json
+  status    PopStatus @default(DRAFT)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([tenantId], name: "idx_pops_tenant_id")
+  @@index([processId], name: "idx_pops_process_id")
+  @@map("pops")
+}
+
+enum PopStatus {
+  DRAFT
+  APPROVED
 }
 
 model Tenant {
