@@ -6,20 +6,25 @@ import {
   Get,
   Logger,
   Param,
+  Patch,
   Post,
   Res,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ChatService, StreamEvent } from './chat.service';
 import { GapAnalysisService } from './gap/gap-analysis.service';
-import { PopService } from './pop/pop.service';
+import { PopService, PopContent } from './pop/pop.service';
+import { PopImageService } from './pop/pop-image.service';
 import { GenerateGraphDto } from './dto/generate-graph.dto';
 import { AnalyzeGapDto } from './dto/analyze-gap.dto';
 import { GeneratePopDto } from './dto/generate-pop.dto';
+import { IllustratePopDto } from './dto/illustrate-pop.dto';
+import { UpdatePopDto } from './dto/update-pop.dto';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 
 const MAX_FILES = 5;
@@ -35,6 +40,7 @@ export class ChatController {
     private readonly chatService: ChatService,
     private readonly gapAnalysisService: GapAnalysisService,
     private readonly popService: PopService,
+    private readonly popImageService: PopImageService,
   ) {}
 
   /**
@@ -74,6 +80,52 @@ export class ChatController {
   @Get('pop/:popId')
   async getPop(@Param('popId') popId: string, @CurrentUser() user: UserPayload) {
     return this.popService.getForUser(popId, user);
+  }
+
+  /**
+   * POST /chat/pop/:popId/illustrate (Epic 6.B) — gera/regenera as ilustracoes
+   * dos passos (Gemini). Sem `ordens`, ilustra os passos ainda sem imagem.
+   */
+  @Post('pop/:popId/illustrate')
+  async illustratePop(
+    @Param('popId') popId: string,
+    @Body() dto: IllustratePopDto,
+    @CurrentUser() user: UserPayload,
+  ) {
+    this.logger.log(`illustrate-pop: pop=${popId} ordens=${dto.ordens?.join(',') ?? 'all'}`);
+    return this.popService.illustrateForUser(popId, user, dto.ordens);
+  }
+
+  /** PATCH /chat/pop/:popId (Epic 6.C) — edita content e/ou status do POP. */
+  @Patch('pop/:popId')
+  async updatePop(
+    @Param('popId') popId: string,
+    @Body() dto: UpdatePopDto,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.popService.updateForUser(popId, user, {
+      content: dto.content as PopContent | undefined,
+      status: dto.status,
+    });
+  }
+
+  /**
+   * GET /chat/pop/image/:popId/:file (Epic 6.B) — serve a imagem do volume.
+   * Publico (uuid nao-enumeravel, mesmo modelo do /share) pra embed em <img>/PDF.
+   * @Res() direto: modo library-specific do Nest ignora o ResponseInterceptor.
+   */
+  @Public()
+  @SkipThrottle()
+  @Get('pop/image/:popId/:file')
+  async serveImage(
+    @Param('popId') popId: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.popImageService.readImage(popId, file);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.end(buffer);
   }
 
   /**

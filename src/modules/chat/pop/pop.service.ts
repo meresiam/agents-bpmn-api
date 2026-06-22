@@ -1,9 +1,16 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AnthropicClient } from '../llm/anthropic.client';
 import { POP_GENERATION_SYSTEM_PROMPT } from '../llm/system-prompt';
 import { ProcessesService } from '../../processes/processes.service';
 import { PopRepository } from './pop.repository';
+import { PopImageService } from './pop-image.service';
 import { UserPayload } from '../../../common/decorators/current-user.decorator';
 
 export interface PopResponsavel {
@@ -18,9 +25,11 @@ export interface PopPasso {
   entrada: string;
   saida: string;
   pontoControle: string;
+  /** URL da ilustracao do passo (Epic 6.B); ausente ate ser gerada. */
+  imagemUrl?: string;
 }
 
-/** Conteudo estruturado do POP. As imagens por passo (Epic 6.B) entram aqui depois. */
+/** Conteudo estruturado do POP. */
 export interface PopContent {
   titulo: string;
   objetivo: string;
@@ -30,6 +39,8 @@ export interface PopContent {
   passos: PopPasso[];
   indicadores: string[];
   riscos: string[];
+  /** Versao do processo TO-BE no momento da geracao (Epic 6.C.3 — aviso de POP desatualizado). */
+  processVersion: number;
 }
 
 export interface GeneratePopResult {
@@ -52,6 +63,7 @@ export class PopService {
     private readonly anthropic: AnthropicClient,
     private readonly processes: ProcessesService,
     private readonly repository: PopRepository,
+    private readonly images: PopImageService,
   ) {}
 
   /**
@@ -66,6 +78,7 @@ export class PopService {
     let sourceId: string;
     let sourceGraph: Record<string, unknown>;
     let sourceTitle: string;
+    let sourceVersion: number;
     let sourceKind: 'TO_BE' | 'SINGLE';
 
     if (process.processKind === 'SINGLE') {
@@ -73,12 +86,14 @@ export class PopService {
       sourceId = process.id;
       sourceGraph = process.graph as Record<string, unknown>;
       sourceTitle = process.title;
+      sourceVersion = process.version;
     } else {
       const pair = await this.processes.getPairForUser(processId, user);
       sourceKind = 'TO_BE';
       sourceId = pair.toBe.id;
       sourceGraph = pair.toBe.graph as Record<string, unknown>;
       sourceTitle = pair.toBe.title;
+      sourceVersion = pair.toBe.version;
     }
 
     const userMessage = this.buildUserMessage(sourceGraph, sourceTitle);
@@ -91,7 +106,7 @@ export class PopService {
     );
     const llmMs = Date.now() - started;
 
-    const content = this.validate(parsed, sourceTitle);
+    const content = this.validate(parsed, sourceTitle, sourceVersion);
 
     const version = (await this.repository.maxVersion(sourceId)) + 1;
     const saved = await this.repository.create({
@@ -128,20 +143,92 @@ export class PopService {
 
   /** Retorna 1 POP com content, validando tenant via o processo de origem. */
   async getForUser(popId: string, user: UserPayload): Promise<GeneratePopResult> {
+    const pop = await this.loadOwned(popId, user);
+    return this.toResult(pop, 0);
+  }
+
+  /**
+   * Epic 6.B — gera (ou regenera) ilustracao dos passos indicados. Sem `ordens`,
+   * ilustra todos os passos que ainda nao tem imagem. Persiste as URLs no content.
+   */
+  async illustrateForUser(
+    popId: string,
+    user: UserPayload,
+    ordens?: number[],
+  ): Promise<GeneratePopResult> {
+    const pop = await this.loadOwned(popId, user);
+    const content = pop.content as unknown as PopContent;
+
+    const alvo = new Set(ordens && ordens.length ? ordens : undefined);
+    const passosAlvo = content.passos.filter((p) =>
+      alvo.size ? alvo.has(p.ordem) : !p.imagemUrl,
+    );
+
+    if (passosAlvo.length === 0) {
+      throw new BadRequestException('Nenhum passo elegivel pra ilustracao.');
+    }
+    if (passosAlvo.length > 12) {
+      throw new BadRequestException('Maximo de 12 passos por requisicao (controle de custo).');
+    }
+
+    // Sequencial: controla custo/rate da API de imagem e mantem ordem dos logs.
+    for (const passo of passosAlvo) {
+      passo.imagemUrl = await this.images.generateAndStore(pop.id, passo.ordem, passo.acao);
+    }
+
+    const saved = await this.repository.update(pop.id, {
+      content: content as unknown as Prisma.InputJsonValue,
+    });
+    this.logger.log(`POP ${pop.id}: ${passosAlvo.length} passo(s) ilustrado(s)`);
+    return this.toResult(saved, 0);
+  }
+
+  /** Epic 6.C — edicao do POP (content e/ou status). Tenant-scoped. */
+  async updateForUser(
+    popId: string,
+    user: UserPayload,
+    patch: { content?: PopContent; status?: 'DRAFT' | 'APPROVED' },
+  ): Promise<GeneratePopResult> {
+    const pop = await this.loadOwned(popId, user);
+
+    const data: Prisma.PopUpdateInput = {};
+    if (patch.content) {
+      // Re-normaliza pra impedir shape invalido vindo do cliente; preserva versao da fonte.
+      const prev = pop.content as unknown as PopContent;
+      const normalized = this.validate(patch.content, prev.titulo, prev.processVersion ?? 1);
+      data.content = normalized as unknown as Prisma.InputJsonValue;
+    }
+    if (patch.status) {
+      data.status = patch.status;
+    }
+
+    const saved = await this.repository.update(pop.id, data);
+    return this.toResult(saved, 0);
+  }
+
+  private async loadOwned(popId: string, user: UserPayload) {
     const pop = await this.repository.findById(popId);
     if (!pop) throw new NotFoundException('POP nao encontrado');
     if (user.role !== 'SUPER_ADMIN' && pop.tenantId !== user.tenantId) {
       throw new ForbiddenException();
     }
+    return pop;
+  }
+
+  private toResult(
+    pop: { id: string; processId: string; version: number; status: 'DRAFT' | 'APPROVED'; content: unknown; createdAt: Date },
+    llmMs: number,
+  ): GeneratePopResult {
+    const content = pop.content as PopContent;
     return {
       id: pop.id,
       processId: pop.processId,
       version: pop.version,
       status: pop.status,
       sourceKind: 'TO_BE',
-      sourceTitle: '',
-      content: pop.content as unknown as PopContent,
-      llmMs: 0,
+      sourceTitle: content?.titulo ?? '',
+      content,
+      llmMs,
       createdAt: pop.createdAt,
     };
   }
@@ -157,7 +244,7 @@ export class PopService {
     ].join('\n');
   }
 
-  private validate(parsed: unknown, fallbackTitle: string): PopContent {
+  private validate(parsed: unknown, fallbackTitle: string, processVersion: number): PopContent {
     if (!parsed || typeof parsed !== 'object') {
       throw new Error('Saida do LLM nao e um objeto');
     }
@@ -173,6 +260,8 @@ export class PopService {
       entrada: String(p.entrada ?? '').trim(),
       saida: String(p.saida ?? '').trim(),
       pontoControle: String(p.pontoControle ?? '').trim(),
+      // Preserva imagem ja gerada (Epic 6.B) — relevante na edicao/reuso, ignorado na geracao.
+      ...(typeof p.imagemUrl === 'string' && p.imagemUrl ? { imagemUrl: p.imagemUrl } : {}),
     }));
     // Garante ordem crescente coerente mesmo se o LLM numerar fora de sequencia.
     passos.sort((a, b) => a.ordem - b.ordem);
@@ -187,6 +276,7 @@ export class PopService {
       passos,
       indicadores: this.normalizeStringList(obj.indicadores),
       riscos: this.normalizeStringList(obj.riscos),
+      processVersion,
     };
   }
 

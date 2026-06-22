@@ -4,6 +4,7 @@ import { ChatService } from './chat.service';
 import { GapAnalysisService } from './gap/gap-analysis.service';
 import { PopService } from './pop/pop.service';
 import { PopRepository } from './pop/pop.repository';
+import { PopImageService } from './pop/pop-image.service';
 import { AnthropicClient } from './llm/anthropic.client';
 import { FileExtractorService } from './files/file-extractor.service';
 import { ProcessesModule } from '../processes/processes.module';
@@ -16,6 +17,7 @@ import { ProcessesModule } from '../processes/processes.module';
     GapAnalysisService,
     PopService,
     PopRepository,
+    PopImageService,
     AnthropicClient,
     FileExtractorService,
   ],

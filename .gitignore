@@ -3,3 +3,5 @@ dist/
 .env
 .env.local
 *.tsbuildinfo
+# Wave 6 / 6.B — ilustracoes do POP geradas em dev (em prod = volume Coolify)
+pop-images/

@@ -102,3 +102,46 @@ enum PopStatus {
 
 Throttle de `/chat/*` (10/min por IP) já cobre o `POST` (chamada LLM cara). Isolamento via
 `ProcessesService.findOneForUser` / `getPairForUser` (403/404 cross-tenant).
+
+---
+
+## 7. Epic 6.B — Ilustração por etapa (Gemini + volume)
+
+As imagens vivem **dentro de `Pop.content.passos[].imagemUrl`** (sem nova tabela). Geração via Gemini
+(Nano Banana) REST; armazenamento em **volume persistente** (lock Tier 1 — Supabase/R2 fora).
+
+### Layout no disco e entrega
+
+```
+{POP_IMAGE_DIR}/{popId}/{ordem}.png
+GET /api/v1/chat/pop/image/{popId}/{ordem}.png   (público, uuid não-enumerável, @SkipThrottle)
+```
+
+`imagemUrl` carrega cache-bust (`?v={timestamp}`) pra regeneração sobrescrever no browser. O serve usa
+`@Res()` direto (modo library-specific do Nest → ignora o `ResponseInterceptor` que envolve em `{data}`).
+Guarda anti-path-traversal: `popId` ~ uuid, `file` ~ `^\d+\.png$`.
+
+### Envs novas (Coolify)
+
+| Env | Default | Nota |
+|---|---|---|
+| `GEMINI_API_KEY` | — | obrigatória pra ilustrar; já existe em `$MERESCLAUDE/.env`. Fail-soft: 503 se ausente (igual `ANTHROPIC_API_KEY`). |
+| `POP_IMAGE_DIR` | `./pop-images` (dev) | em prod = caminho do **volume persistente** montado no Coolify (ex `/data/pop-images`). |
+| `GEMINI_IMAGE_MODEL` | `gemini-2.5-flash-image` | configurável (o nome do modelo muda com versão). |
+
+> **Provisão de infra (Meres):** declarar 1 volume persistente no app backend do Coolify e setar
+> `POP_IMAGE_DIR` pra dentro dele. Sem volume, as imagens somem a cada redeploy.
+
+### Endpoints 6.B/6.C
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/chat/pop/:popId/illustrate` | `{ ordens?: number[] }` → gera/regenera ilustração (sem `ordens` = passos sem imagem; máx 12/req) |
+| `PATCH` | `/chat/pop/:popId` | `{ content?, status? }` → edição inline + status `DRAFT`→`APPROVED` (6.C) |
+| `GET` | `/chat/pop/image/:popId/:file` | serve a imagem (público) |
+
+## 8. Epic 6.C — Staleness (POP desatualizado)
+
+`content.processVersion` guarda a `version` do TO-BE no momento da geração. O frontend compara com a
+`version` atual do processo; se divergir, mostra "POP desatualizado" e oferece regerar. Sem coluna extra
+(vive no JSON).

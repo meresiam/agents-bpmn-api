@@ -42,4 +42,8 @@ export class PopRepository {
   findById(id: string): Promise<Pop | null> {
     return this.prisma.pop.findUnique({ where: { id } });
   }
+
+  update(id: string, data: Prisma.PopUpdateInput): Promise<Pop> {
+    return this.prisma.pop.update({ where: { id }, data });
+  }
 }
